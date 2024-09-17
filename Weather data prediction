@@ -1,0 +1,83 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+import matplotlib.pyplot as plt
+
+# Load your dataset
+# Make sure to replace 'microclimate_data.csv' with your actual data file
+data = pd.read_csv('microclimate_data.csv')
+
+# Convert timestamp to datetime if necessary
+data['timestamp'] = pd.to_datetime(data['timestamp'])
+
+# Feature engineering
+data['hour'] = data['timestamp'].dt.hour
+data['day'] = data['timestamp'].dt.day
+data['month'] = data['timestamp'].dt.month
+data['year'] = data['timestamp'].dt.year
+
+# Define features and target variable
+# Adjust the feature list based on your dataset
+X = data[['hour', 'day', 'month', 'year', 'solar_radiation', 'wind_speed', 'humidity']]
+y = data['temperature']
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Initialize the model
+model = LinearRegression()
+
+# Train the model
+model.fit(X_train, y_train)
+
+# Make predictions
+predictions = model.predict(X_test)
+
+# Evaluate the model
+mse = mean_squared_error(y_test, predictions)
+r2 = r2_score(y_test, predictions)
+
+print(f'Mean Squared Error: {mse}')
+print(f'R-squared: {r2}')
+
+# Plotting the results
+plt.figure(figsize=(10, 6))
+plt.scatter(y_test, predictions, alpha=0.5)
+plt.plot([y.min(), y.max()], [y.min(), y.max()], 'k--', lw=2)
+plt.xlabel('True Values')
+plt.ylabel('Predictions')
+plt.title('True Values vs Predictions')
+plt.show()
+
+# Future predictions (for the next two years)
+# Create a DataFrame for future timestamps
+future_dates = pd.date_range(start='2024-01-01', end='2025-12-31', freq='H')
+future_data = pd.DataFrame(future_dates, columns=['timestamp'])
+future_data['hour'] = future_data['timestamp'].dt.hour
+future_data['day'] = future_data['timestamp'].dt.day
+future_data['month'] = future_data['timestamp'].dt.month
+future_data['year'] = future_data['timestamp'].dt.year
+
+# Assuming you have a way to estimate solar_radiation, wind_speed, and humidity for future dates
+# For simplicity, we will use the mean of the training data
+mean_solar_radiation = X_train['solar_radiation'].mean()
+mean_wind_speed = X_train['wind_speed'].mean()
+mean_humidity = X_train['humidity'].mean()
+
+future_data['solar_radiation'] = mean_solar_radiation
+future_data['wind_speed'] = mean_wind_speed
+future_data['humidity'] = mean_humidity
+
+# Make predictions for future data
+future_X = future_data[['hour', 'day', 'month', 'year', 'solar_radiation', 'wind_speed', 'humidity']]
+future_predictions = model.predict(future_X)
+
+# Add predictions to the future_data DataFrame
+future_data['predicted_temperature'] = future_predictions
+
+# Save future predictions to a CSV file
+future_data.to_csv('future_temperature_predictions.csv', index=False)
+
+print("Future temperature predictions saved to 'future_temperature_predictions.csv'.")
