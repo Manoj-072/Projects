@@ -1,0 +1,34 @@
+#include <SD.h>
+
+File dataFile;
+
+void setup() {
+  // Initialize SD card
+  if (!SD.begin(4)) {
+    Serial.println("SD card initialization failed!");
+    return;
+  }
+  dataFile = SD.open("datalog.csv", FILE_WRITE);
+  if (dataFile) {
+    dataFile.println("Timestamp,Temperature,Humidity,Light Level,Air Quality");
+    dataFile.close();
+  }
+}
+
+void loop() {
+  // Open the file for writing
+  dataFile = SD.open("datalog.csv", FILE_WRITE);
+  if (dataFile) {
+    dataFile.print(millis()); // Timestamp
+    dataFile.print(",");
+    dataFile.print(temperature);
+    dataFile.print(",");
+    dataFile.print(humidity);
+    dataFile.print(",");
+    dataFile.print(lightLevel);
+    dataFile.print(",");
+    dataFile.println(airQuality);
+    dataFile.close();
+  }
+  delay(15000); // Wait before the next data collection
+}
