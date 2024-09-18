@@ -74,3 +74,127 @@ void loop() {
   // Wait 15 seconds before the next loop
   delay(15000);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Microcontroller: Arduino Uno or any compatible board.
+Sensors:
+DHT22 or BME280: For temperature and humidity.
+LDR (Light Dependent Resistor): For solar radiation (or a dedicated solar radiation sensor).
+Anemometer: For wind speed and direction (you can use a simple cup anemometer).
+PM2.5/PM10 Sensor: For air quality (e.g., MQ-135).
+SD Card Module: To store data locally.
+LCD Display (optional): To display readings in real-time.
+Power Supply: Battery or USB power supply.
+Resistors and Breadboard: For circuit connections.
+Basic Steps to Build the Prototype
+Set Up the Hardware:
+
+Connect the sensors to the Arduino according to their specifications.
+Connect the SD card module to the Arduino.
+Optionally, connect an LCD display to show real-time data.
+Wiring Diagram:
+
+DHT22: Connect VCC to 5V, GND to GND, and the data pin to a digital pin (e.g., pin 2).
+LDR: Connect one end to 5V, the other end to a resistor (10kΩ) and then to GND. Connect the junction to an analog pin (e.g., A0).
+Anemometer: Connect to a digital pin (e.g., pin 3) to read the pulse count.
+PM2.5/PM10 Sensor: Connect according to the sensor's specifications (usually requires analog input).
+SD Card Module: Connect to the SPI pins (MOSI, MISO, SCK) and a digital pin for CS (e.g., pin 10).
+LCD Display: Connect according to the display type (e.g., I2C or parallel).
+Write the Code: Below is a basic example code that reads from the DHT22, LDR, and an anemometer, and stores the data on an SD card.
+
+#include <DHT.h>
+#include <SPI.h>
+#include <SD.h>
+
+// DHT Sensor setup
+#define DHTPIN 2     // Pin where the DHT22 is connected
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
+
+// LDR setup
+#define LDR_PIN A0   // Pin for LDR
+
+// Anemometer setup
+#define ANEMOMETER_PIN 3 // Pin for anemometer
+
+// SD Card setup
+const int chipSelect = 10; // CS pin for SD card
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+  pinMode(ANEMOMETER_PIN, INPUT);
+  pinMode(LDR_PIN, INPUT);
+
+  // Initialize SD card
+  if (!SD.begin(chipSelect)) {
+    Serial.println("SD card initialization failed!");
+    return;
+  }
+  Serial.println("SD card initialized.");
+}
+
+void loop() {
+  // Read temperature and humidity
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  int ldrValue = analogRead(LDR_PIN);
+  int windSpeed = digitalRead(ANEMOMETER_PIN); // This will need to be processed for actual speed
+
+  // Check if any reads failed
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Print values to Serial Monitor
+  Serial.print("Humidity: ");
+  Serial.print(h);
+  Serial.print(" %\t");
+  Serial.print("Temperature: ");
+  Serial.print(t);
+  Serial.print(" *C\t");
+  Serial.print("LDR Value: ");
+  Serial.print(ldrValue);
+  Serial.print("\tWind Speed: ");
+  Serial.println(windSpeed);
+
+  // Write data to SD card
+  File dataFile = SD.open("datalog.txt", FILE_WRITE);
+  if (dataFile) {
+    dataFile.print("Humidity: ");
+    dataFile.print(h);
+    dataFile.print(" %, Temperature: ");
+    dataFile.print(t);
+    dataFile.print(" *C, LDR Value: ");
+    dataFile.print(ldrValue);
+    dataFile.print(", Wind Speed: ");
+    dataFile.println(windSpeed);
+    dataFile.close();
+  } else {
+    Serial.println("Error opening datalog.txt");
+  }
+
+  // Wait for 10 seconds before the next reading
+  delay(10000);
+}
