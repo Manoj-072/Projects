@@ -198,3 +198,356 @@ void loop() {
   // Wait for 10 seconds before the next reading
   delay(10000);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd 
+file=pd.read_csv('feeds.csv') 
+df = file.drop(file.iloc[:,9:13], axis=1) 
+df=df.set_axis(['timestamp','id','solar_radiation','temperature','humidity','Air_Quality',
+ 'Pressure','Altitude','wind_speed' ], axis=1) 
+print(df) 
+data=df 
+#now calculating the otc(OUTDOOR THERMAL COMFORT LEVEL) of a 
+pedesterian from the given data set 
+
+features = ['solar_radiation', 'temperature', 'humidity', 'Air_Quality', 'Pressure', 
+'Altitude', 'wind_speed'] 
+target = 'OTC' 
+# Calculate OTC using the COMFA model 
+def calculate_comfa(row): 
+    metabolic_rate=58 
+    clothing_insulation=0.5 
+    
+    # Constants 
+    stefan_boltzmann = 5.67e-8  # Stefan-Boltzmann constant (W/m^2/K^4) 
+    emissivity = 0.95  # Skin emissivity 
+    clothing_factor = 0.155  # Conversion factor for clo to m^2·K/W 
+    specific_heat_air = 1005  # Specific heat capacity of air (J/kg/K) 
+    density_air = 1.225  # Density of air at sea level (kg/m^3) 
+     
+    # Conversions 
+    clothing_resistance = clothing_insulation * clothing_factor 
+    air_temp_kelvin = row['temperature'] + 273.15 
+     
+    # Heat components 
+    Q_M = metabolic_rate  # Metabolic heat production 
+     
+    # Convective heat exchange 
+    Q_C=density_air*specific_heat_air* row['wind_speed'] * (row['temperature'] - 30) 
+/ (1 + clothing_resistance) 
+ 
+    # Radiative heat exchange 
+    Q_R = emissivity * stefan_boltzmann * ((air_temp_kelvin**4) - (30 + 273.15)**4) 
+     
+    # Solar radiation heat gain 
+    Q_S = row['solar_radiation'] * 0.7  # Assuming 70% absorption 
+     
+    # Evaporative cooling (humidity effect) 
+    Q_E = -0.42*(row['humidity']/100)* (metabolic_rate + row['solar_radiation']) 
+# Net thermal effect 
+Q_net = Q_M + Q_C + Q_R + Q_S + Q_E 
+return Q_net 
+# Return the calculated OTC value 
+data['OTC'] = data.apply(calculate_comfa, axis=1) 
+print(data) 
+import numpy as np 
+# Step 1: Normalize OTC values to range [0, 1] 
+otc_min = data['OTC'].min() 
+otc_max = data['OTC'].max() 
+data['OTC_normalized'] = (data['OTC'] - otc_min) / (otc_max - otc_min) 
+# Step 2: Scale to range [-2, 2] 
+data['OTC_scaled'] = data['OTC_normalized'] * 4 - 2 
+# Step 3: Round to nearest integer 
+data['OTC_scaled'] = data['OTC_scaled'].round().astype(int) 
+# Optional: Drop the intermediate normalized column if not needed 
+data.drop('OTC_normalized', axis=1, inplace=True) 
+print(data[['OTC', 'OTC_scaled']]) 
+import pandas as pd 
+import matplotlib.pyplot as plt 
+import seaborn as sns 
+
+import numpy as np 
+# Assuming data processing code has already run 
+# Let's fix the OTC scale to be between -2 and 2 directly 
+# Modified normalization: Instead of normalizing to [0,1] and then to [-2,2], 
+# directly normalize to [-2,2] using min-max scaling 
+otc_min = data['OTC'].min() 
+otc_max = data['OTC'].max() 
+data['OTC_correct'] = -2 + 4 * (data['OTC'] - otc_min) / (otc_max - otc_min) 
+data['OTC_scaled'] = data['OTC_correct'].round().astype(int) 
+# Ensure values are clamped between -2 and 2 
+data['OTC_scaled'] = data['OTC_scaled'].clip(-2, 2) 
+# Set up styling 
+plt.style.use('seaborn-v0_8-whitegrid') 
+colors = sns.color_palette("viridis", 7) 
+# Figure 1: Time series of OTC values (original calculated and properly scaled) 
+plt.figure(figsize=(12, 6)) 
+plt.plot(data['timestamp'], 
+data['OTC'], marker='o', linestyle='-', color='blue', 
+alpha=0.7, label='Raw OTC') 
+plt.plot(data['timestamp'],data['OTC_correct'],marker='x',linestyle='--', 
+alpha=0.7, label='Scaled OTC (-2 to 2)') 
+plt.title('Outdoor Thermal Comfort (OTC) Over Time', fontsize=14) 
+plt.xlabel('Timestamp', fontsize=12) 
+plt.ylabel('OTC Value', fontsize=12) 
+plt.legend() 
+plt.grid(True, alpha=0.3) 
+plt.xticks(rotation=45) 
+plt.tight_layout() 
+plt.savefig('otc_time_series_corrected.png', dpi=300) 
+color='red', 
+
+plt.show() 
+# Figure 2: Distribution of OTC values with thermal comfort interpretation 
+plt.figure(figsize=(12, 6)) 
+# Plot histogram of continuous scaled OTC 
+sns.histplot(data['OTC_correct'], kde=True, color='teal', bins=20, alpha=0.6) 
+# Plot histogram of discrete values (integer categories) 
+sns.histplot(data['OTC_scaled'], kde=False, color='navy', bins=np.arange(-2.5, 3.5, 1), 
+alpha=0.4) 
+# Add vertical lines for comfort zones 
+plt.axvline(-2, color='blue', linestyle='--', alpha=0.7, label='Very Cold (-2)') 
+plt.axvline(-1, color='lightblue', linestyle='--', alpha=0.7, label='Cold (-1)') 
+plt.axvline(0, color='green', linestyle='--', alpha=0.7, label='Neutral (0)') 
+plt.axvline(1, color='orange', linestyle='--', alpha=0.7, label='Hot (1)') 
+plt.axvline(2, color='red', linestyle='--', alpha=0.7, label='Very Hot (2)') 
+plt.title('Distribution of OTC Values with Thermal Comfort Categories', fontsize=14) 
+plt.xlabel('OTC Value (-2 to +2 scale)', fontsize=12) 
+plt.ylabel('Frequency', fontsize=12) 
+plt.legend(title='Comfort Categories') 
+plt.grid(True, alpha=0.3) 
+plt.tight_layout() 
+plt.savefig('otc_distribution_categories.png', dpi=300) 
+plt.show() 
+# Figure 3: Scatter plots of environmental attributes vs. OTC 
+attributes = ['solar_radiation', 'temperature', 'humidity', 'Air_Quality', 'Pressure', 
+'Altitude', 'wind_speed'] 
+fig, axes = plt.subplots(3, 3, figsize=(18, 15)) 
+axes = axes.flatten() 
+ 
+for i, attribute in enumerate(attributes): 
+    scatter = sns.scatterplot(x=data[attribute], y=data['OTC_correct'],  
+                            ax=axes[i], hue=data['OTC_scaled'], palette='coolwarm',  
+                            alpha=0.7, edgecolor='k', s=70) 
+     
+    # Add a horizontal line at each OTC comfort level 
+    for level in [-2, -1, 0, 1, 2]: 
+        axes[i].axhline(y=level, color='gray', linestyle='--', alpha=0.4) 
+     
+    axes[i].set_title(f'OTC vs {attribute}', fontsize=12) 
+    axes[i].set_xlabel(attribute, fontsize=10) 
+    axes[i].set_ylabel('OTC Value (-2 to 2)', fontsize=10) 
+    axes[i].grid(True, alpha=0.3) 
+    axes[i].set_ylim(-2.5, 2.5)  # Set y-limits to show the full OTC range 
+     
+    # Add trend line 
+    sns.regplot(x=data[attribute], y=data['OTC_correct'], ax=axes[i],  
+               scatter=False, color='black', line_kws={'linewidth': 2}) 
+     
+    # Add correlation coefficient 
+    corr = data[attribute].corr(data['OTC_correct']) 
+    axes[i].annotate(f'r = {corr:.2f}', xy=(0.05, 0.95), xycoords='axes fraction', 
+                    bbox=dict(boxstyle="round,pad=0.3",fc="white",ec="gray",    
+alpha=0.8)) 
+     
+    # Create custom legend for OTC categories 
+    if i == 0: 
+        h, _ = scatter.get_legend_handles_labels() 
+        legend_labels = ['Very Cold (-2)', 'Cold (-1)', 'Neutral (0)', 'Hot (1)', 'Very  
+Hot (2)'] 
+ 
+        axes[i].legend(h, legend_labels, title='OTC Category') 
+    else: 
+        scatter.legend_.remove()  # Remove duplicate legends 
+# Hide the unused subplots 
+for j in range(i+1, 9): 
+axes[j].axis('off') 
+plt.tight_layout() 
+plt.savefig('otc_vs_attributes_correct_scale.png', dpi=300) 
+plt.show() 
+# Figure 4: Correlation heatmap 
+plt.figure(figsize=(12, 10)) 
+correlation_cols = attributes + ['OTC', 'OTC_correct', 'OTC_scaled'] 
+correlation_matrix = data[correlation_cols].corr() 
+mask = np.triu(np.ones_like(correlation_matrix, dtype=bool)) 
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f',  
+mask=mask,vmin=-1,vmax=1,cbar_kws={'label':'Correlation Coefficient'}) 
+plt.title('Correlation Heatmap of Environmental Attributes and OTC', fontsize=16) 
+plt.tight_layout() 
+plt.savefig('correlation_heatmap_updated.png', dpi=300) 
+plt.show() 
+# Figure 5: Stacked bar chart showing the count of each OTC category 
+plt.figure(figsize=(10, 6)) 
+otc_counts = data['OTC_scaled'].value_counts().sort_index() 
+otc_counts.plot(kind='bar',color=sns.color_palette("coolwarm", len(otc_counts))) 
+plt.title('Distribution of Thermal Comfort Categories', fontsize=14) 
+plt.xlabel('OTC Category', fontsize=12) 
+plt.ylabel('Count', fontsize=12) 
+plt.xticks(rotation=0) 
+plt.grid(True, axis='y', alpha=0.3) 
+plt.tight_layout() 
+plt.savefig('otc_category_counts.png', dpi=300) 
+ 
+ 
+plt.show() 
+ 
+# Figure 6: Box plots of key environmental factors by OTC category 
+key_attributes = ['temperature', 'humidity', 'solar_radiation', 'wind_speed'] 
+fig, axes = plt.subplots(2, 2, figsize=(16, 12)) 
+axes = axes.flatten() 
+ 
+for i, attribute in enumerate(key_attributes): 
+    sns.boxplot(x='OTC_scaled', y=attribute, data=data,  
+               palette='coolwarm', ax=axes[i]) 
+     
+    axes[i].set_title(f'{attribute} by Thermal Comfort Category', fontsize=14) 
+    axes[i].set_xlabel('OTC Category (-2 to 2)', fontsize=12) 
+    axes[i].set_ylabel(attribute, fontsize=12) 
+    axes[i].grid(True, alpha=0.3) 
+ 
+plt.tight_layout() 
+plt.savefig('environmental_factors_by_otc_category.png', dpi=300) 
+plt.show() 
+ 
+# Figure 7: Radar chart for average values across OTC categories 
+def radar_chart(categories): 
+    plt.figure(figsize=(10, 10)) 
+     
+    # Select key attributes for radar chart 
+    radar_attrs = ['solar_radiation', 'temperature', 'humidity', 'wind_speed'] 
+     
+    # Get number of variables 
+    N = len(radar_attrs) 
+     
+    # What will be the angle of each axis in the plot 
+    angles = [n / float(N) * 2 * np.pi for n in range(N)] 
+ 
+    angles += angles[:1]  # Close the loop 
+
+ 
+    # Initialize the plot 
+    ax = plt.subplot(111, polar=True) 
+     
+    # Draw one axis per variable and add labels 
+ 
+    plt.xticks(angles[:-1], radar_attrs, size=12) 
+     
+    # Draw ylabels 
+    ax.set_rlabel_position(0) 
+     
+    # Color map for different categories 
+    colors = plt.cm.coolwarm(np.linspace(0, 1, len(categories))) 
+     
+    # Plot each category 
+    for i, category in enumerate(categories): 
+        # Get data for this category 
+        category_data = data[data['OTC_scaled'] == category] 
+         
+        if len(category_data) == 0: 
+            continue 
+             
+        # Calculate means for each attribute 
+        values = [category_data[attr].mean() for attr in radar_attrs] 
+         
+        # Scale values between 0 and 1 for comparison 
+        min_vals = data[radar_attrs].min() 
+        max_vals = data[radar_attrs].max() 
+        scaled_values = [(val - min_val) / (max_val - min_val) if  
+         for val, min_val, max_val in zip(values, min_vals, max_vals)] 
+         
+        # Close the loop 
+        scaled_values += scaled_values[:1] 
+         
+ 
+
+ 
+        # Plot values 
+        ax.plot(angles,scaled_values,linewidth=2,linestyle='solid', color=colors[i],  
+                label=f'Category {category}') 
+        ax.fill(angles, scaled_values, color=colors[i], alpha=0.25) 
+     
+    # Add legend 
+    plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1)) 
+     
+    plt.title('Average Environmental Parameters by OTC Category', size=15) 
+    plt.tight_layout() 
+    plt.savefig('radar_chart_otc_categories.png', dpi=300) 
+    plt.show() 
+ 
+# Get unique categories 
+categories = sorted(data['OTC_scaled'].unique()) 
+radar_chart(categories) 
+ 
+# Figure 8: Time of day analysis 
+# Extract hour from timestamp if it's in a datetime format 
+try: 
+    # Try to convert to datetime if not already 
+    if not pd.api.types.is_datetime64_any_dtype(data['timestamp']): 
+        data['datetime'] = pd.to_datetime(data['timestamp']) 
+    else: 
+        data['datetime'] = data['timestamp'] 
+         
+    # Extract hour 
+    data['hour'] = data['datetime'].dt.hour 
+     
+    # Group by hour and calculate average OTC 
+    hourly_otc = data.groupby('hour')['OTC_correct'].mean().reset_index() 
+     
+    plt.figure(figsize=(12, 6)) 
+ 
+
+ 
+ 
+    plt.plot(hourly_otc['hour'], hourly_otc['OTC_correct'], marker='o',  
+            linestyle='-', color='purple', linewidth=2) 
+     
+    # Add horizontal lines for comfort zones 
+    plt.axhline(y=0, color='green', linestyle='--', alpha=0.7, label='Neutral') 
+    plt.axhline(y=1, color='orange', linestyle='--', alpha=0.7, label='Hot') 
+    plt.axhline(y=-1, color='lightblue', linestyle='--', alpha=0.7, label='Cold') 
+     
+    plt.title('Average Thermal Comfort by Hour of Day', fontsize=14) 
+    plt.xlabel('Hour of Day', fontsize=12) 
+    plt.ylabel('Average OTC Value (-2 to 2)', fontsize=12) 
+    plt.xticks(range(0, 24)) 
+    plt.ylim(-2.5, 2.5) 
+    plt.grid(True, alpha=0.3) 
+    plt.legend(title='Comfort Levels') 
+    plt.tight_layout() 
+    plt.savefig('hourly_otc_analysis.png', dpi=300) 
+    plt.show() 
+except Exception as e: 
+    print(f"Could not perform time-of-day analysis: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
